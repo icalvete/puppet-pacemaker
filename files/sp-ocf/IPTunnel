@@ -1,0 +1,173 @@
+#!/bin/bash
+
+: ${OCF_FUNCTIONS_DIR=${OCF_ROOT}/lib/heartbeat}
+. ${OCF_FUNCTIONS_DIR}/ocf-shellfuncs
+
+meta_data() {
+        cat <<END
+<?xml version="1.0"?>
+<!DOCTYPE resource-agent SYSTEM "ra-api-1.dtd">
+<resource-agent name="IPtunnel">
+<version>1.0</version>
+
+<longdesc lang="en">
+This is a IPtunnel Resource Agent.
+It starts an IPtunnel and keeps it open as long as ping answers
+</longdesc>
+<shortdesc lang="en">Monitors connectivity to specific hosts or
+IP addresses ("ping nodes") (deprecated)</shortdesc>
+
+<parameters>
+
+<parameter name="tunnel_name" unique="0">
+<longdesc lang="en">The network interface that will be created will hold this name</longdesc>
+<shortdesc lang="en">Tunnel Interface name</shortdesc>
+<content type="string" default="tun0" />
+</parameter>
+
+
+<parameter name="inner_local_ip" unique="0">
+<longdesc lang="en">
+Inner IP in the local side
+</longdesc>
+<shortdesc lang="en">Inner IP in the local side</shortdesc>
+<content type="string" default="" />
+</parameter>
+
+<parameter name="outter_local_ip" unique="0">
+<longdesc lang="en">
+Outter IP in the local side
+</longdesc>
+<shortdesc lang="en">Outter IP in the local side</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
+<parameter name="inner_remote_ip" unique="0">
+<longdesc lang="en">
+Inner IP on the remote side
+</longdesc>
+<shortdesc lang="en">Inner IP in the local side</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
+<parameter name="outter_remote_ip" unique="0">
+<longdesc lang="en">
+Outter IP on the remote side
+</longdesc>
+<shortdesc lang="en">Outter IP on the remote side</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
+<parameter name="routes_list" unique="0">
+<longdesc lang="en">
+A list of the routes to reach in the remote DC
+</longdesc>
+<shortdesc lang="en">A list of the routes to reach in the remote DC</shortdesc>
+<content type="string" default=""/>
+</parameter>
+
+
+</parameters>
+
+<actions>
+<action name="start"   timeout="20s" />
+<action name="stop"    timeout="20s" />
+<action name="monitor" depth="0"  timeout="20s" interval="10" />
+<action name="meta-data"  timeout="5" />
+<action name="validate-all"  timeout="20s" />
+</actions>
+</resource-agent>
+END
+}
+
+init() {
+    lockfile=/var/lock/tems_iptunnel
+    tunnel_name="$OCF_RESKEY_tunnel_name"
+    outter_remote_ip="$OCF_RESKEY_outter_remote_ip"
+    inner_remote_ip="$OCF_RESKEY_inner_remote_ip"
+    outter_local_ip="$OCF_RESKEY_outter_local_ip"
+    inner_local_ip="$OCF_RESKEY_inner_local_ip"
+    routes_list="$OCF_RESKEY_routes_list"
+}
+
+start() {
+   ocf_log info "Starting ${tunnel_name} to ${outter_remote_ip}."
+    ip tunnel add ${tunnel_name} mode gre remote ${outter_remote_ip} local ${outter_local_ip} ttl 255
+    ip link set ${tunnel_name} up
+    ip addr add ${inner_local_ip} dev ${tunnel_name}
+    ip route add ${inner_remote_ip} dev ${tunnel_name}
+    ocf_log info "Route list => ${routes_list}"
+    oldIFS="$IFS"
+    IFS=','
+    for route in ${routes_list}
+    do
+        ip route add ${route} via ${inner_remote_ip}
+    done
+    IFS="${oldIFS}"
+
+    touch $lockfile
+    exit $OCF_SUCCESS
+}
+
+stop() {
+    ocf_log info "Stoping ${tunnel_name} to ${outter_remote_ip}."
+
+    if [ ip tun show dev ${tunnel_name} ]
+    then
+        ip link set ${tunnel_name} down
+        ip tunnel del ${tunnel_name}
+    fi
+
+    rm -f $lockfile
+    exit $OCF_SUCCESS
+}
+
+monitor() {
+    if [ -f $lockfile ] ;  then
+       #If the tunnel is set up , try to ping our peer internal ip
+        ip tun show | grep tun0
+        result=$?
+        if [ "$result" -eq 0 ]; then
+            ocf_log info "Pinging ${inner_remote_ip}"
+            ping -c 2 -w 10 ${inner_remote_ip}
+            result=$?
+            if [ $result -eq 0 ]; then
+                return $OCF_SUCCESS
+            fi
+            return $OCF_ERR_GENERIC
+        fi
+    fi
+    return $OCF_NOT_RUNNING
+}
+
+validate() {
+    return $OCF_SUCCESS
+}
+
+usage(){
+    echo "This is not supposed to be used directly but throught pacemaker"
+}
+
+init
+
+
+case $__OCF_ACTION in
+    start)              start
+        ;;
+    stop)               stop
+        ;;
+    monitor)    monitor
+        ;;
+    meta-data)    meta_data
+                  exit $OCF_SUCCESS
+        ;;
+    validate-all)       validate
+        ;;
+    *)          usage
+        exit $OCF_ERR_UNIMPLEMENTED
+        ;;
+esac
+rc=$?
+ocf_log debug "${OCF_RESOURCE_INSTANCE} $__OCF_ACTION : $rc"
+exit $rc
+
