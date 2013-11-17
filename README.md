@@ -18,7 +18,7 @@ See [Clusters from Scratch](http://clusterlabs.org/doc/en-US/Pacemaker/1.1-crmsh
 
 * https://github.com/icalvete/puppet-common
 * https://github.com/icalvete/puppet-drbd 
-* **Use your own authkey**
+* ** !!! Use your own authkey ¡¡¡**
 
 ##Example:
 
@@ -111,6 +111,25 @@ define roles::pacemaker_cluster(
     ha_primary    => $ha_primary,
     initial_setup => $initial_setup,
     automount     => false,
+    before        => Class['pacemaker']
+  }
+
+  pacemaker::cluster {$cluster_name:
+    asymetrical     => false,
+    service         => $service_name,
+    vip             => $vip,
+    drbd_resource   => $drbd_resource,
+    drbd_device     => $drbd_device,
+    drbd_mountpoint => $drbd_mountpoint,
+    cidr_netmask    => $cidr_netmask,
+    node_active     => $node_active,
+    node_passive    => $node_passive,
+    require         => [Drbd::Resource[$drbd_resource],Class['pacemaker']]
+  }
+
+  anchor{"roles::pacemaker_cluster::${name}::end":}
+
+}
 ```
 
 ##Authors:
