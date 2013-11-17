@@ -18,7 +18,7 @@ See [Clusters from Scratch](http://clusterlabs.org/doc/en-US/Pacemaker/1.1-crmsh
 
 * https://github.com/icalvete/puppet-common
 * https://github.com/icalvete/puppet-drbd 
-* ** !!! Use your own authkey ¡¡¡**
+* **!!! Use your own authkey ¡¡¡**
 
 ##Example:
 
