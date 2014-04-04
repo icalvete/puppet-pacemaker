@@ -23,7 +23,7 @@ See [Clusters from Scratch](http://clusterlabs.org/doc/en-US/Pacemaker/1.1-crmsh
 ##Example:
 
 
-```
+```puppet
 node 'ubuntu01.smartpurposes.net' inherits test_defaults {
   include roles::puppet_agent
   include roles::apache2_server
@@ -60,7 +60,7 @@ node 'ubuntu02.smartpurposes.net' inherits test_defaults {
 Where  roles::pacemaker_cluster is:
 
 
-```
+```puppet
 define roles::pacemaker_cluster(
 
   $cluster_name    = $name,
